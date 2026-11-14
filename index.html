@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>Distribución de áreas, riego y cultivos – Campus de Jutiapa</title>
+<link rel="stylesheet" href="lib/leaflet.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif;color:#111;background:#fff}
+#enc{position:fixed;top:0;left:0;right:0;height:60px;background:#fff;border-bottom:2px solid #000;z-index:1200;display:flex;align-items:center;gap:8px;padding:0 10px}
+#enc .tx{flex:1;text-align:center;line-height:1.15;min-width:0}
+#enc .t{font-weight:700;font-size:16px;letter-spacing:.2px}
+#enc .s{font-size:11px}
+#enc .g{font-size:10px;color:#333}
+button{font:600 12px Arial;border:1px solid #000;background:#fff;color:#000;border-radius:4px;padding:8px 10px;cursor:pointer}
+button:active{background:#eee}
+#mapa{position:fixed;top:60px;left:0;right:0;bottom:0}
+#panel{position:fixed;top:60px;left:0;width:310px;bottom:0;background:#fff;border-right:2px solid #000;z-index:1100;overflow-y:auto;padding:10px 12px;font-size:12px;transition:transform .2s}
+#panel.oculto{transform:translateX(-100%)}
+#panel h3{margin:10px 0 4px;font-size:12px;text-transform:uppercase;border-bottom:1px solid #000;padding-bottom:2px}
+#panel label{display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;line-height:1.2}
+#panel input[type=checkbox]{width:16px;height:16px}
+.sw{display:inline-block;min-width:18px;height:12px;border:1px solid #000}
+.sw.pt{border-radius:50%;min-width:12px}.sw.ln{height:0;border:0;border-top:2px solid;min-width:18px}
+.sw.dash{border-top-style:dashed}
+#mapa .leaflet-container{font-family:Arial}
+.pop th{text-align:left;vertical-align:top;padding:2px 8px 2px 0;white-space:nowrap}.pop td{padding:2px 0}
+.pop{font-size:12px;border-collapse:collapse}
+.leaflet-popup-content{margin:10px 12px}
+.pt-tit{font-weight:700;font-size:13px;margin-bottom:4px}
+.etq{font:700 11px Arial;color:#000;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;white-space:nowrap;text-align:center;line-height:1.1}
+.etq small{display:block;font-weight:400;font-size:10px}
+.circ{display:block;width:12px;height:12px;border-radius:50%;background:var(--c);border:1.5px solid #fff}
+.tri{display:block;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:13px solid var(--c)}
+.cua{display:block;width:11px;height:11px;background:var(--c);border:1.5px solid #fff}
+.rom{display:block;width:10px;height:10px;background:var(--c);border:1.5px solid #fff;transform:rotate(45deg)}
+.arb{display:block;width:16px;height:16px;border-radius:50%;background:var(--c);border:2px solid #fff}
+.asp{display:block;font:700 17px/14px Arial;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 0 2px #000;text-align:center}
+.fte{display:block;font:700 18px/16px Arial;color:#fff;text-shadow:0 0 2px #0050a0,0 0 2px #0050a0,0 0 3px #0050a0;text-align:center}
+.con{display:block;width:11px;height:11px;background:#e00;border:1.5px solid #fff;transform:rotate(45deg)}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:none;align-items:center;justify-content:center;padding:12px}
+#modal.abierto{display:flex}
+#modal .caja{background:#fff;border:2px solid #000;max-width:620px;max-height:90vh;overflow-y:auto;padding:14px 16px;font-size:13px;line-height:1.4}
+#modal h2{margin:0 0 8px;font-size:15px}
+#modal h4{margin:10px 0 3px;font-size:13px}
+#modal p,#modal ul{margin:3px 0}
+#norte{position:fixed;top:72px;right:10px;z-index:1000;background:#fff;border:1px solid #000;border-radius:4px;padding:3px 8px;font:700 12px Arial;text-align:center;line-height:1}
+#norte b{display:block;font-size:16px}
+.leaflet-control-scale-line{font-size:11px}
+body.lejos .circ,body.lejos .tri,body.lejos .cua,body.lejos .arb,body.lejos .asp,body.lejos .fte,body.lejos .con{transform:scale(.55)}body.lejos .rom{transform:rotate(45deg) scale(.55)}
+@media (max-width:760px){
+ #enc .t{font-size:12px}#enc .s{font-size:9px}#enc .g{display:none}
+ #panel{width:82%;max-width:320px}
+ #norte{top:68px}
+}
+</style>
+</head>
+<body>
+<header id="enc">
+ <button id="bCapas" aria-label="Mostrar u ocultar capas">Capas</button>
+ <div class="tx"><div class="t">DISTRIBUCIÓN DE ÁREAS, RIEGO Y CULTIVOS</div><div class="s">QGIS utilizando inteligencia artificial</div><div class="g">Proyecto del Curso de Geomática · Grupo B | Escenario B · Campus de Jutiapa</div></div>
+ <button id="bInfo">Instrucciones</button>
+</header>
+<aside id="panel"></aside>
+<div id="mapa"></div>
+<div id="norte"><b>▲</b>N</div>
+<div id="modal"><div class="caja">
+ <h2>Instrucciones del visor</h2>
+ <h4>Cómo consultar</h4>
+ <ul><li>Active o apague capas en el panel <b>Capas</b>. La ortofoto tiene un control de transparencia.</li>
+ <li>Toque o haga clic en un <b>sector</b> para ver su identificador, docente, uso, superficie, acceso y supuestos.</li>
+ <li>Toque los trazos de riego, símbolos, módulos y el reservorio para ver su descripción.</li>
+ <li>Use los botones + y −, la rueda del ratón o los dedos para acercar y alejar.</li></ul>
+ <h4>Alcance de la información</h4>
+ <ul><li>Los límites del campus provienen de puntos GNSS y de vértices interpretados sobre la ortofoto.</li>
+ <li>El contorno del reservorio es una <b>interpretación de la ortofoto</b>. El docente lo identificó como fuente de agua; no se suma al perímetro ni a las superficies.</li>
+ <li>La red de distribución y los módulos son <b>trazos y ubicaciones proyectados</b>. Caudal, presión, calidad del agua, cota de toma, diámetros y bombeo están pendientes.</li>
+ <li>Los símbolos de cultivos y árboles representan el uso de cada sector; no indican densidad de siembra.</li></ul>
+ <h4>Conexión y dirección</h4>
+ <p>Para consultar el visor mediante el código QR se requiere conexión a internet. Abierto desde la carpeta del proyecto, el visor funciona sin conexión, salvo el mapa base en línea opcional.</p>
+ <p><b>Dirección de esta página (enlace alternativo):</b><br><span id="url" style="word-break:break-all"></span></p>
+ <p style="margin-top:10px"><button id="bCerrar">Cerrar</button></p>
+</div></div>
+<script src="lib/leaflet.js"></script>
+<script src="datos/meta.js"></script>
+<script src="datos/datos.js"></script>
+<script>
+(function(){
+var COL={B01:'#e63c3c',B02:'#f0aa28',B03:'#5aa0dc',B04:'#3c6ec8',B05:'#78be5a',B06:'#50c8c8',B07:'#3c9650',B08:'#c8dc50',B09:'#966ec8',B10:'#e682be',B11:'#c8c8c8',B12:'#969696'};
+var map=L.map('mapa',{maxZoom:22,minZoom:15,zoomSnap:0.25,zoomDelta:0.5});
+map.attributionControl.setPrefix('Proyecto del Curso de Geomática');
+var orto=L.imageOverlay('datos/ortofoto_web.png',ORTO_LIMITES,{opacity:1,zIndex:2,alt:'Ortofoto del Campus de Jutiapa'}).addTo(map);
+var osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,maxNativeZoom:19,zIndex:1,attribution:'© colaboradores de OpenStreetMap'});
+function tabla(f){return '<table class="pop">'+f.map(function(r){return '<tr><th>'+r[0]+'</th><td>'+r[1]+'</td></tr>'}).join('')+'</table>'}
+function pop(t,f){return '<div class="pt-tit">'+t+'</div>'+tabla(f)}
+var PATH={interactive:true};
+// sectores
+var sect=L.geoJSON(DATOS.sectores,{style:function(f){return {color:'#fff',weight:2.2,fillColor:COL[f.properties.id],fillOpacity:.22}},onEachFeature:function(f,l){var p=f.properties;
+ l.bindPopup(pop('Sector '+p.id+' – '+p.uso,[['Identificador',p.id],['Docente',p.docente],['Uso',p.uso],['Superficie',p.area_txt],['Estado del uso',p.estado],['Acceso',p.acceso],['Supuestos',p.supuestos]]),{maxWidth:340});
+ l.on('mouseover',function(){l.setStyle({fillOpacity:.45})});l.on('mouseout',function(){sect.resetStyle(l)});}});
+var etq=L.layerGroup();
+function etiquetas(){etq.clearLayers();var z=map.getZoom();DATOS.sectores.features.forEach(function(f){var p=f.properties,h='<span class="etq">'+p.id+(z>=19.5?'<small>'+p.uso+'</small>':'')+'</span>';L.marker([p.lab[1],p.lab[0]],{icon:L.divIcon({className:'',html:h,iconSize:[0,0]}),interactive:false,keyboard:false}).addTo(etq)})}
+var perim=L.geoJSON(DATOS.perimetro,{style:{color:'#ffeb00',weight:3.2,fill:false},onEachFeature:function(f,l){l.bindPopup(pop(f.properties.nombre,[['Superficie',f.properties.area_txt]]))}});
+var calle=L.geoJSON(DATOS.calle,{style:{color:'#78c8ff',weight:1.8,fillColor:'#fff',fillOpacity:.2},onEachFeature:function(f,l){l.bindPopup(pop(f.properties.nombre,[['Superficie',f.properties.area_txt]]))}});
+// riego
+var cond=L.geoJSON(DATOS.conduccion,{style:{color:'#0028c8',weight:3.2,dashArray:'7 5'},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(pop(p.nombre,[['Sector',p.sector||'–'],['Longitud',String(p.long_m).replace('.',',')+' m'],['Nota',p.nota]]))}});
+var lat=L.geoJSON(DATOS.laterales,{style:{color:'#0a6eff',weight:1.2},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(pop('Lateral de riego por goteo',[['Sector',p.sector],['Uso',p.uso],['Separación entre laterales',String(p.sep_m).replace('.',',')+' m'],['Nota',p.nota]]))}});
+var asp=L.geoJSON(DATOS.aspersores,{pointToLayer:function(f,ll){return L.marker(ll,{icon:L.divIcon({className:'',html:'<span class="asp">+</span>',iconSize:[16,16],iconAnchor:[8,8]})})},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(pop('Aspersor',[['Sector',p.sector],['Retícula',p.reticula],['Nota',p.nota]]))}});
+// simbolos
+var SIM={'Sandía':['circ','#1e8232'],'Maíz':['tri','#ffc800'],'Hortalizas en camas':['cua','#8cdc3c'],'Plantas aromáticas':['rom','#aa6ed2'],'Vivero forestal':['circ','#009678'],'Árbol frutal del banco de germoplasma':['arb','#146e28']};
+var simb=L.geoJSON(DATOS.simbolos,{pointToLayer:function(f,ll){var s=SIM[f.properties.uso]||['circ','#666'];return L.marker(ll,{icon:L.divIcon({className:'',html:'<span class="'+s[0]+'" style="--c:'+s[1]+'"></span>',iconSize:[14,14],iconAnchor:[7,7]})})},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(pop(p.uso,[['Sector',p.sector],['Nota',p.nota]]))}});
+var MODC={'Casa malla 2':['#96c8f0','#005ab4',true],'Módulo hidropónico':['#50c8dc','#00788c',false],'Módulo de semilleros':['#ffaa46','#be6400',false],'Depósito':['#005ac8','#fff',false]};
+var mod=L.geoJSON(DATOS.modulos,{style:function(f){var k=Object.keys(MODC).filter(function(x){return f.properties.nombre.indexOf(x)===0})[0],c=MODC[k]||['#999','#333',false];return {fillColor:c[0],fillOpacity:.65,color:c[1],weight:1.6,dashArray:c[2]?'6 4':null}},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(pop(p.nombre,[['Sector',p.sector],['Estado',p.estado],['Nota',p.nota]]))}});
+var est=L.geoJSON(DATOS.estructuras,{style:{fillColor:'#dcdcdc',fillOpacity:.35,color:'#5a5a5a',weight:1.8},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(pop(p.nombre,[['Sector',p.sector],['Nota',p.nota]]))}});
+// reservorio
+var res=L.geoJSON(DATOS.reservorio,{style:{color:'#00e6ff',weight:2.4,dashArray:'7 5',fillColor:'#00e6ff',fillOpacity:.12},onEachFeature:function(f,l){var p=f.properties;l.bindPopup(pop(p.nombre,[['Condición',p.nota]]),{maxWidth:320})}});
+var fte=L.geoJSON(DATOS.fuente,{pointToLayer:function(f,ll){return L.marker(ll,{icon:L.divIcon({className:'',html:'<span class="fte">★</span>',iconSize:[18,18],iconAnchor:[9,9]})})},onEachFeature:function(f,l){l.bindPopup(pop(f.properties.nombre,[['Nota',f.properties.nota]]))}});
+var con=L.geoJSON(DATOS.conexion,{pointToLayer:function(f,ll){return L.marker(ll,{icon:L.divIcon({className:'',html:'<span class="con"></span>',iconSize:[14,14],iconAnchor:[7,7]})})},onEachFeature:function(f,l){l.bindPopup(pop(f.properties.nombre,[['Nota',f.properties.nota]]))}});
+// panel
+var G=[{t:'Mapa base',i:[{n:'Ortofoto RGB',l:orto,on:1,op:1,sw:'<span class="sw" style="background:linear-gradient(90deg,#6b5a3e,#7d9b50)"></span>'},{n:'Mapa base en línea (OpenStreetMap)',l:osm,on:0,sw:'<span class="sw" style="background:#e8e0d0"></span>'}]},
+{t:'Sectores y límites',i:[{n:'Sectores asignados (identificador y uso)',l:L.layerGroup([sect,etq]),on:1,sw:'<span class="sw" style="background:linear-gradient(90deg,#e63c3c,#f0aa28,#5aa0dc,#78be5a)"></span>'},{n:'Perímetro del campus',l:perim,on:1,sw:'<span class="sw ln" style="border-color:#ffeb00;border-top-width:3px"></span>'},{n:'Calle continua',l:calle,on:1,sw:'<span class="sw" style="background:#fff;border-color:#78c8ff"></span>'}]},
+{t:'Riego',i:[{n:'Red de distribución desde el reservorio (trazo proyectado)',l:cond,on:1,sw:'<span class="sw ln dash" style="border-color:#0028c8;border-top-width:3px"></span>'},{n:'Laterales de riego por goteo',l:lat,on:1,sw:'<span class="sw ln" style="border-color:#0a6eff"></span>'},{n:'Aspersores (retícula de 6 × 6 m)',l:asp,on:1,sw:'<span class="sw" style="background:#000;color:#fff;text-align:center;font:700 11px/11px Arial">+</span>'}]},
+{t:'Cultivos y estructuras',i:[{n:'Cultivos y árboles',l:simb,on:1,sw:'<span class="sw pt" style="background:#1e8232"></span><span class="sw pt" style="background:#ffc800"></span><span class="sw pt" style="background:#aa6ed2"></span>',leg:[['#1e8232','Sandía'],['#ffc800','Maíz (triángulo)'],['#8cdc3c','Hortalizas en camas (cuadrado)'],['#aa6ed2','Plantas aromáticas (rombo)'],['#009678','Vivero forestal'],['#146e28','Árbol frutal del banco de germoplasma']]},{n:'Casa malla, hidroponía y semilleros (ubicación proyectada)',l:mod,on:1,sw:'<span class="sw" style="background:#96c8f0;border-color:#005ab4"></span><span class="sw" style="background:#50c8dc;border-color:#00788c"></span><span class="sw" style="background:#ffaa46;border-color:#be6400"></span>'},{n:'Estructuras y camas visibles en la ortofoto',l:est,on:1,sw:'<span class="sw" style="background:#dcdcdc;border-color:#5a5a5a"></span>'}]},
+{t:'Fuente de agua',i:[{n:'Reservorio externo (contorno interpretado de ortofoto)',l:res,on:1,sw:'<span class="sw" style="background:#d8fbff;border:2px dashed #00b4c8"></span>'},{n:'Punto representativo de la fuente',l:fte,on:1,sw:'<span class="sw pt" style="background:#0050a0"></span>'},{n:'Punto de conexión proyectado',l:con,on:1,sw:'<span class="sw" style="background:#e00"></span>'}]}];
+var panel=document.getElementById('panel'),h='<b>CAPAS</b>';
+G.forEach(function(g,gi){h+='<h3>'+g.t+'</h3>';g.i.forEach(function(it,ii){h+='<label>'+(it.sw||'')+'<input type="checkbox" data-g="'+gi+'" data-i="'+ii+'"'+(it.on?' checked':'')+'><span>'+it.n+'</span></label>';if(it.op)h+='<div style="margin:0 0 6px 24px">Transparencia de la ortofoto<br><input type="range" id="opac" min="0" max="100" value="0" style="width:90%"></div>';if(it.leg){h+='<div style="margin:0 0 6px 24px;font-size:11px">'+it.leg.map(function(x){return '<div><span class="sw pt" style="background:'+x[0]+';min-width:9px;height:9px;margin-right:4px"></span>'+x[1]+'</div>'}).join('')+'</div>'}})});
+h+='<p style="margin-top:12px;font-size:11px;color:#333">Sistema de coordenadas de los datos: WGS 84 / UTM zona 16N (EPSG:32616). El visor muestra las capas en WGS 84.</p>';
+panel.innerHTML=h;
+G.forEach(function(g){g.i.forEach(function(it){if(it.on)it.l.addTo(map)})});
+panel.addEventListener('change',function(e){var t=e.target;if(t.type==='checkbox'){var it=G[t.dataset.g].i[t.dataset.i];if(t.checked)it.l.addTo(map);else map.removeLayer(it.l)}});
+var op=document.getElementById('opac');if(op)op.addEventListener('input',function(){orto.setOpacity(1-op.value/100)});
+var b=L.geoJSON(DATOS.perimetro).getBounds().extend(L.geoJSON(DATOS.reservorio).getBounds());
+var usuario=false;function aplicarPanel(){if(usuario)return;if(window.innerWidth<=760)panel.classList.add('oculto');else panel.classList.remove('oculto')}
+function ajustarVista(){aplicarPanel();map.invalidateSize();var ancho=(window.innerWidth>760&&!panel.classList.contains('oculto'))?320:12;map.fitBounds(b,{paddingTopLeft:[ancho,12],paddingBottomRight:[12,12],animate:false})}
+ajustarVista();setTimeout(ajustarVista,250);window.addEventListener('load',ajustarVista);
+map.setMaxBounds(L.latLngBounds(ORTO_LIMITES).pad(.6));window.visorMapa=map;
+L.control.scale({metric:true,imperial:false,position:'bottomleft'}).addTo(map);
+function escala(){document.body.classList.toggle('lejos',map.getZoom()<18.9)}map.on('zoomend',function(){etiquetas();escala()});etiquetas();escala();
+var bC=document.getElementById('bCapas'),m=document.getElementById('modal');
+
+bC.onclick=function(){usuario=true;panel.classList.toggle('oculto');setTimeout(function(){map.invalidateSize()},250)};
+document.getElementById('bInfo').onclick=function(){document.getElementById('url').textContent=location.href;m.classList.add('abierto')};
+document.getElementById('bCerrar').onclick=function(){m.classList.remove('abierto')};
+m.addEventListener('click',function(e){if(e.target===m)m.classList.remove('abierto')});
+window.addEventListener('resize',function(){ajustarVista()});
+})();
+</script>
+</body>
+</html>
